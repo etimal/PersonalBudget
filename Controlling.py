@@ -30,6 +30,7 @@ def get_files(directory:str, run_mode:str):
             # print(f'{entry.name}\t Last Modified: {convert_date(info.st_mtime)}')
             # print(entry.path)
             files.append(entry.path)
+    files.sort()        
 
     if run_mode == 'all_files':
         result = files
@@ -496,7 +497,7 @@ def ReadSource(run_mode:int):
 
 # 1: incremental refresh, 
 # 2: full refresh
-run_mode = 1
+run_mode = 2
 ReadSource(run_mode)
 
 
