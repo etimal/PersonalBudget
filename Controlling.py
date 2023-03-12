@@ -1,18 +1,31 @@
+#generic/built-in
 import os
+import json
 from os import scandir
-from datetime import date, datetime
+from datetime import datetime
 
+#installed libs
 import pandas as pd
 from dotenv import load_dotenv
-load_dotenv()  # take environment variables from .env.
+load_dotenv()
 
-STRUCTURE_EXPENSES         = ['DATE','ACCOUNT','CATEGORY','DESCRIPTION','STATUS','AMOUNT']   #[each_string.upper() for each_string in STUCTURE_EXPENSES]
-STRUCTURE_INCOMES          = ['DATE','ACCOUNT','DESCRIPTION','AMOUNT']
-STRUCTURE_INVESTMENT       = ['DATE', 'ACCOUNT', 'AMOUNT', 'COMMENT']
-STRUCTURE_INVESTMENT_YTD   = ['DATE', 'MONTH', 'AMOUNT', 'COMMENT']
-STRUCTURE_ACCOUNTS         = ['ACCOUNT_ID', 'ACCOUNT', 'CURRENCY', 'COUNTRY','ITEM','TYPE','COMMENT']
-STRUCTURE_ACCOUNTS_BALANCE = ['ACCOUNT', 'LAST BALANCE', 'PERIOD', 'ASSIGNMENT','INCOMES','TRANSFERS','AMOUNT','EXPENSES','TOTAL PERIOD','TOTAL ACCOUNT','NEW BALANCE','CHECK DATE']
-STRUCTURE_CATEGORIES       = ['CATEGORY_ID', 'CATEGORY', 'TYPE', 'GROUP', 'COMMENT']
+''' 
+###### run mode ######
+# mode 1 -> incremental refresh, 
+# mode 2 -> full refresh
+'''
+run_mode = 2
+
+#setup variables
+structure_filename = 'column_structure.json'
+column_structure = os.path.join(os.getcwd(), structure_filename)
+STRUCTURE_INCOMES          = json.load(open(column_structure))['Incomes']
+STRUCTURE_EXPENSES         = json.load(open(column_structure))['Expenses']
+STRUCTURE_INVESTMENT       = json.load(open(column_structure))['Investment']
+STRUCTURE_INVESTMENT_YTD   = json.load(open(column_structure))['InvestmentYTD']
+STRUCTURE_ACCOUNTS         = json.load(open(column_structure))['Accounts']
+STRUCTURE_ACCOUNTS_BALANCE = json.load(open(column_structure))['AccountsBalance']
+STRUCTURE_CATEGORIES       = json.load(open(column_structure))['Categories']
 STRUCTURE_UPDATES          = []
 
 def convert_date(timestamp):
@@ -30,7 +43,7 @@ def get_files(directory:str, run_mode:str):
             # print(f'{entry.name}\t Last Modified: {convert_date(info.st_mtime)}')
             # print(entry.path)
             files.append(entry.path)
-    files.sort()        
+    files.sort()
 
     if run_mode == 'all_files':
         result = files
@@ -494,12 +507,8 @@ def ReadSource(run_mode:int):
             print('DB name: %s created' %df.name)
 
 
-
-# 1: incremental refresh, 
-# 2: full refresh
-run_mode = 2
-ReadSource(run_mode)
-
+if __name__ == "__main__":
+    ReadSource(run_mode)
 
 # https://realpython.com/working-with-files-in-python/#getting-file-attributes
 # https://pythoslabs.medium.com/4-ways-to-filter-numeric-values-in-dataframes-using-pandas-f69ca3f33b05

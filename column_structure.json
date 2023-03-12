@@ -1,0 +1,59 @@
+{
+    "Incomes":[
+        "DATE",
+        "ACCOUNT",
+        "DESCRIPTION",
+        "AMOUNT"
+    ],
+    "Expenses":[
+        "DATE",
+        "ACCOUNT",
+        "CATEGORY",
+        "DESCRIPTION",
+        "STATUS",
+        "AMOUNT"
+    ],
+    "Investment":[
+        "DATE",
+        "ACCOUNT",
+        "AMOUNT",
+        "COMMENT"
+    ],
+    "InvestmentYTD":[
+        "DATE",
+        "MONTH",
+        "AMOUNT",
+        "COMMENT"
+    ],
+    "Accounts":[
+        "ACCOUNT_ID",
+        "ACCOUNT",
+        "CURRENCY",
+        "COUNTRY",
+        "ITEM",
+        "TYPE",
+        "COMMENT"
+    ],
+    "AccountsBalance":[
+        "ACCOUNT",
+        "LAST BALANCE",
+        "PERIOD",
+        "ASSIGNMENT",
+        "INCOMES",
+        "TRANSFERS",
+        "AMOUNT",
+        "EXPENSES",
+        "TOTAL PERIOD", 
+        "TOTAL ACCOUNT",
+        "NEW BALANCE",
+        "CHECK DATE"
+    ],
+    "Categories":[
+        "CATEGORY_ID",
+        "CATEGORY",
+        "TYPE",
+        "GROUP",
+        "COMMENT"
+    ],
+    "Updates":[]
+}
