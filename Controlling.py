@@ -14,18 +14,20 @@ load_dotenv()
 # mode 1 -> incremental refresh, 
 # mode 2 -> full refresh
 '''
-run_mode = 2
+run_mode = 1
+PRODUCTION_MODE = True
 
 #setup variables
 structure_filename = 'column_structure.json'
 column_structure = os.path.join(os.getcwd(), structure_filename)
-STRUCTURE_INCOMES          = json.load(open(column_structure))['Incomes']
-STRUCTURE_EXPENSES         = json.load(open(column_structure))['Expenses']
-STRUCTURE_INVESTMENT       = json.load(open(column_structure))['Investment']
-STRUCTURE_INVESTMENT_YTD   = json.load(open(column_structure))['InvestmentYTD']
-STRUCTURE_ACCOUNTS         = json.load(open(column_structure))['Accounts']
-STRUCTURE_ACCOUNTS_BALANCE = json.load(open(column_structure))['AccountsBalance']
-STRUCTURE_CATEGORIES       = json.load(open(column_structure))['Categories']
+column_structure = json.load(open(column_structure))
+STRUCTURE_INCOMES          = column_structure['Incomes']
+STRUCTURE_EXPENSES         = column_structure['Expenses']
+STRUCTURE_INVESTMENT       = column_structure['Investment']
+STRUCTURE_INVESTMENT_YTD   = column_structure['InvestmentYTD']
+STRUCTURE_ACCOUNTS         = column_structure['Accounts']
+STRUCTURE_ACCOUNTS_BALANCE = column_structure['AccountsBalance']
+STRUCTURE_CATEGORIES       = column_structure['Categories']
 STRUCTURE_UPDATES          = []
 
 def convert_date(timestamp):
@@ -41,8 +43,8 @@ def get_files(directory:str, run_mode:str):
         if entry.is_file():
             # info = entry.stat()
             # print(f'{entry.name}\t Last Modified: {convert_date(info.st_mtime)}')
-            # print(entry.path)
             files.append(entry.path)
+            print(f' file collected: {entry.path}')
     files.sort()
 
     if run_mode == 'all_files':
@@ -336,27 +338,27 @@ def DataCollection(paths:list):
     i = 0
     for file_path in paths:
         xls = pd.ExcelFile(file_path)
-        expenses = get_expenses(xls)
-        incomes = get_incomes(xls)
-        investment = get_investment(xls)
-        investment_ytd =  get_investment_ytd(xls)
+        expenses    = get_expenses(xls)
+        incomes     = get_incomes(xls)
+        investment  = get_investment(xls)
+        investment_ytd      = get_investment_ytd(xls)
         accounts, num_accts = get_accounts(xls)
-        accounts_balance = get_accounts_balance(xls, num_accts)
+        accounts_balance    = get_accounts_balance(xls, num_accts)
 
         if i ==0:
-            df_expenses = expenses
-            df_incomes = incomes
-            df_investment = investment
-            df_investment_ytd = investment_ytd
-            df_accounts = accounts
+            df_expenses     = expenses
+            df_incomes      = incomes
+            df_investment   = investment
+            df_investment_ytd   = investment_ytd
+            df_accounts         = accounts
             df_accounts_balance = accounts_balance
         else:
-            df_expenses = df_expenses.append(expenses)
-            df_incomes = df_incomes.append(incomes)
-            df_investment = df_investment.append(investment)
-            df_investment_ytd = df_investment_ytd.append(investment_ytd)
-            df_accounts = df_accounts.append(accounts)
-            df_accounts_balance = df_accounts_balance.append(accounts_balance)
+            df_expenses     = pd.concat([df_expenses, expenses], ignore_index=True)
+            df_incomes      = pd.concat([df_incomes, incomes], ignore_index=True)
+            df_investment   = pd.concat([df_investment, investment], ignore_index=True)
+            df_investment_ytd   = pd.concat([df_investment_ytd, investment_ytd], ignore_index=True)
+            df_accounts         = pd.concat([df_accounts, accounts], ignore_index=True)
+            df_accounts_balance = pd.concat([df_accounts_balance, accounts_balance], ignore_index=True)
         i=+1
         # print('file %s compleated' % file_path.split('\\')[-1] )
     
@@ -491,25 +493,27 @@ def ReadSource(run_mode:int):
             elif MAX_SOURCE_PERIOD < MAX_DB_PERIOD:
                 raise Exception('db period is higher than source')
 
-            db = db.append(df)                                              #Adding new dataset
+            db = pd.concat([db,df], ignore_index=True)                      #Adding new dataset
             db.reset_index(drop=True, inplace=True)
             db.rename_axis('id', inplace=True)
             db = db.drop(columns=['id'])
-            db.to_csv(PATH_TO_DB,encoding='utf-8-sig', index=True)          #Save dataset
-            print('DB name: %s updated' %df.name)
+            if PRODUCTION_MODE == True:
+                db.to_csv(PATH_TO_DB,encoding='utf-8-sig', index=True)      #Save dataset
+                print('DB name: %s updated' %df.name)
+            else:
+                print(f'DB to update: {df.name}')
 
     elif run_mode == 2:
         for df in [expenses, incomes, investment, investment_ytd, accounts, accounts_balance]:
             PATH_TO_DB = os.path.join(os.getenv(r'DB_LOCATION'), '%s.csv') %df.name
             df[db_last_update] = now
             df[db_last_update] = df[db_last_update].dt.strftime('%Y-%m-%d %H:%M:%S')            
-            df.to_csv(PATH_TO_DB, encoding='utf-8-sig')
-            print('DB name: %s created' %df.name)
+            if PRODUCTION_MODE == True:
+                df.to_csv(PATH_TO_DB, encoding='utf-8-sig')
+                print('DB name: %s created' %df.name)
+            else:
+                print(f'DB to create: {df.name}')
 
 
 if __name__ == "__main__":
     ReadSource(run_mode)
-
-# https://realpython.com/working-with-files-in-python/#getting-file-attributes
-# https://pythoslabs.medium.com/4-ways-to-filter-numeric-values-in-dataframes-using-pandas-f69ca3f33b05
-# https://www.geeksforgeeks.org/pandas-remove-rows-with-special-characters/
