@@ -14,7 +14,7 @@ load_dotenv()
 # mode 1 -> incremental refresh, 
 # mode 2 -> full refresh
 '''
-run_mode = 1
+run_mode = 2
 PRODUCTION_MODE = True
 
 #setup variables
