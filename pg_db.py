@@ -36,7 +36,14 @@ class Database:
             logging.info("Connection to PostgreSQL succeeded")
     
     def create_table(self, query:str):
-        resp = self.client.execute(query)
+        try:
+            resp = self.client.execute(query)
+        except Exception as e:
+            logging.error(e)
+            return False
+        
+        # Make the changes to the database persistent
+        self.client.commit()
         return True
 
     def create_table_from_file(self, file_name:str):
