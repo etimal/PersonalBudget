@@ -40,6 +40,7 @@ class Database:
             resp = self.client.execute(query)
         except Exception as e:
             logging.error(e)
+            self.client.rollback()
             return False
         
         # Make the changes to the database persistent

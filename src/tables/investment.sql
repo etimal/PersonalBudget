@@ -1,12 +1,9 @@
-CREATE TABLE public.accounts
+CREATE TABLE public.investment
 (
     id bigserial,
-    account_id integer,
+    date date,
     account character varying(255),
-    currency character varying(255),
-    country character varying(255),
-    item character varying(255),
-    type character varying(255),
+    amount real,
     comment character varying(255),
     source_period character varying(255),
     source_name character varying(255),
