@@ -49,6 +49,14 @@ def create_tables():
         path_to_query = table_sql_files.get(table)
         db.create_table_from_file(path_to_query)
 
+def delete_tables():
+    db = connect_to_db()
+    table_sql_files = scan_directory(dir=r'src\\tables')
+    for table in table_sql_files:
+        logging.info(f"execute 'drop table' for {table}")
+        table_name = table.split("\\")[-1].replace('.sql','')
+        db.drop_table(table=table_name)
+
 def insert_data_into_table():
     db = connect_to_db()
     db_path = os.getenv('DB_LOCATION')
@@ -65,8 +73,8 @@ def main():
     load_env_variables(file_path=ENV_PATH)
     logging.info(f'variables for {ENV_NAME} env loaded')
 
-    # #create tables
-    # create_tables()
+    # execute operation
+    # delete_tables()
 
 if __name__ == "__main__":
     main()

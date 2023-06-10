@@ -74,3 +74,15 @@ class Database:
             self.client.commit()
             cursor.close()
             logging.info(f'{len(df)} rows were inserted into table {table}')
+    
+    def drop_table(self, table:str):
+        try:
+            query = "DROP TABLE IF EXISTS %s CASCADE" %(table)            
+            resp = self.client.execute(query)
+        except Exception as e:
+            logging.error(e)
+            self.client.rollback()
+            return False
+        else:
+            self.client.commit()
+            return True
