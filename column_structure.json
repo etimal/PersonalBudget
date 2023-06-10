@@ -3,6 +3,7 @@
         "DATE",
         "ACCOUNT",
         "DESCRIPTION",
+        "STATUS",
         "AMOUNT"
     ],
     "Expenses":[

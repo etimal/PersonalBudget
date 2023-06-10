@@ -4,6 +4,7 @@ import logging
 
 #installed libs
 import psycopg
+import pandas as pd
 
 class Database:
     def __init__(self):
@@ -53,3 +54,23 @@ class Database:
         if resp == True:
             table_name = file_name.split("\\")[-1].replace('.sql','')
             logging.info(f'table {table_name} was created successfully')
+    
+    def insert_into_table(self, df:pd.DataFrame, table):
+        rows = [tuple(x) for x in df.to_numpy()]
+        cols = ','.join(list(df.columns.str.lower()))
+        placeholders  = ','.join(['%s'] * len(df.columns))
+
+        #query to execute
+        query = "INSERT INTO %s (%s) VALUES (%s)" %(table, cols, placeholders)
+        try:
+            cursor = self.client.cursor()
+            cursor.executemany(query, rows)
+        except (Exception, psycopg.DatabaseError) as error:
+            logging.error(error)
+            self.client.rollback()
+            cursor.close()
+            raise ValueError(error)
+        else:
+            self.client.commit()
+            cursor.close()
+            logging.info(f'{len(df)} rows were inserted into table {table}')

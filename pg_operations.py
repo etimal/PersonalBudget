@@ -2,6 +2,9 @@
 import os
 import logging
 
+#installed libs
+import pandas as pd
+
 #own modules
 import pg_db
 from log import logger_configuration
@@ -20,6 +23,12 @@ def scan_directory(dir:str):
             files[entry.name] = entry.path
     logging.info(f'files on {dir}: {len(files)}')
     return files
+
+def connect_to_db():
+    db = pg_db.Database()
+    db.create_connection()
+    logging.info(f'db connection: {db.connection}')
+    return db
 
 def create_table():
     db = pg_db.Database()
@@ -40,6 +49,16 @@ def create_tables():
         path_to_query = table_sql_files.get(table)
         db.create_table_from_file(path_to_query)
 
+def insert_data_into_table():
+    db = connect_to_db()
+    db_path = os.getenv('DB_LOCATION')
+    table_name = 'accounts'
+    table_path = os.path.join(db_path, f'{table_name}.csv')
+    df = pd.read_csv(table_path, encoding='utf-8-sig', delimiter=',')
+    df.drop(columns=['id'], inplace=True)   #id will be placed automatically on postgre
+    df = df.iloc[:5]
+    db.insert_into_table(df=df, table=table_name)
+
 def main():
     ENV_NAME = 'dev'
     ENV_PATH = os.path.join(os.getcwd(), 'env', f'{ENV_NAME}.env')
@@ -47,8 +66,7 @@ def main():
     logging.info(f'variables for {ENV_NAME} env loaded')
 
     # #create tables
-    create_tables()
-    
+    # create_tables()
 
 if __name__ == "__main__":
     main()

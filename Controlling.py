@@ -1,13 +1,18 @@
 #generic/built-in
 import os
 import json
+import logging
 from os import scandir
 from datetime import datetime
 
 #installed libs
+import numpy as np
 import pandas as pd
-from dotenv import load_dotenv
-load_dotenv()
+
+#own modules
+import pg_db
+from log import logger_configuration
+logger_configuration()
 
 ''' 
 ###### run mode ######
@@ -15,7 +20,8 @@ load_dotenv()
 # mode 2 -> full refresh
 '''
 run_mode = 2
-PRODUCTION_MODE = True
+EXPORT_TO_LOCAL = False
+EXPORT_TO_DB = True
 
 #setup variables
 structure_filename = 'column_structure.json'
@@ -29,6 +35,10 @@ STRUCTURE_ACCOUNTS         = column_structure['Accounts']
 STRUCTURE_ACCOUNTS_BALANCE = column_structure['AccountsBalance']
 STRUCTURE_CATEGORIES       = column_structure['Categories']
 STRUCTURE_UPDATES          = []
+
+def load_env_variables(file_path):
+    from dotenv import load_dotenv
+    load_dotenv(file_path)
 
 def convert_date(timestamp):
     d = datetime.utcfromtimestamp(timestamp)
@@ -334,6 +344,32 @@ def get_accounts_balance(xls, num_accts:int):
     df_balance['source_name'] = source_name  
     return df_balance
 
+def remove_spaces_from_columns(df:pd.DataFrame):
+    new_columns_dict = {}
+
+    rule_eval = [x for x in df.columns.to_list() if x.__contains__(' ') ]
+    if len(rule_eval) > 0:
+        new_columns = [x.replace(' ', '_') for x in rule_eval]
+        #append new columns names to dict
+        for i, col in enumerate(rule_eval):
+            new_columns_dict[col] = new_columns[i]
+        if len(new_columns_dict) == len(rule_eval):
+            return True, new_columns_dict
+    else:
+        return False , new_columns_dict
+
+def verify_column_type(df:pd.DataFrame, target_types:list):
+    new_column_types = {}
+    rule_eval = list(df.select_dtypes(include=target_types))
+    
+    dafault_type = str
+    if len(rule_eval) > 0:
+        for col in rule_eval:
+            new_column_types[col] = dafault_type
+        return True, new_column_types
+    else:
+        return False, new_column_types
+
 def DataCollection(paths:list):
     i = 0
     for file_path in paths:
@@ -366,21 +402,39 @@ def DataCollection(paths:list):
     index_name = 'id'
     df_expenses.reset_index(drop=True, inplace=True)
     df_expenses.rename_axis(index_name, inplace=True)
+    rename_cols, names_dict = remove_spaces_from_columns(df=df_expenses)
+    if rename_cols == True:
+        df_expenses.rename(columns=names_dict, inplace=True)
 
     df_incomes.reset_index(drop=True, inplace=True)
     df_incomes.rename_axis(index_name, inplace=True)
+    rename_cols, names_dict = remove_spaces_from_columns(df=df_incomes)
+    if rename_cols == True:
+        df_incomes.rename(columns=names_dict, inplace=True)
 
     df_investment.reset_index(drop=True, inplace=True)
     df_investment.rename_axis(index_name, inplace=True)
+    rename_cols, names_dict = remove_spaces_from_columns(df=df_investment)
+    if rename_cols == True:
+        df_investment.rename(columns=names_dict, inplace=True)
 
     df_investment_ytd.reset_index(drop=True, inplace=True)
     df_investment_ytd.rename_axis(index_name, inplace=True)
+    rename_cols, names_dict = remove_spaces_from_columns(df=df_investment_ytd)
+    if rename_cols == True:
+        df_investment_ytd.rename(columns=names_dict, inplace=True)
 
     df_accounts.reset_index(drop=True, inplace=True)
     df_accounts.rename_axis(index_name, inplace=True)
+    rename_cols, names_dict = remove_spaces_from_columns(df=df_accounts)
+    if rename_cols == True:
+        df_accounts.rename(columns=names_dict, inplace=True)
 
     df_accounts_balance.reset_index(drop=True, inplace=True)
     df_accounts_balance.rename_axis(index_name, inplace=True)
+    rename_cols, names_dict = remove_spaces_from_columns(df=df_accounts_balance)
+    if rename_cols == True:
+        df_accounts_balance.rename(columns=names_dict, inplace=True)
 
     #Set df names
     df_expenses.name = 'expenses'
@@ -408,7 +462,7 @@ def DataCollection(paths:list):
             pass
         elif df.name == 'accounts_balance':
             df['period'] = df['period'].dt.strftime('%Y-%m-%d')
-            df['check date'] = df['check date'].dt.strftime('%Y-%m-%d')
+            df['check_date'] = df['check_date'].dt.strftime('%Y-%m-%d')
             df = df_accounts_balance
 
     return df_expenses, df_incomes, df_investment, df_investment_ytd, df_accounts, df_accounts_balance
@@ -497,23 +551,41 @@ def ReadSource(run_mode:int):
             db.reset_index(drop=True, inplace=True)
             db.rename_axis('id', inplace=True)
             db = db.drop(columns=['id'])
-            if PRODUCTION_MODE == True:
+            if EXPORT_TO_LOCAL == True:
                 db.to_csv(PATH_TO_DB,encoding='utf-8-sig', index=True)      #Save dataset
                 print('DB name: %s updated' %df.name)
             else:
                 print(f'DB to update: {df.name}')
 
     elif run_mode == 2:
+        if EXPORT_TO_DB == True:
+            db = pg_db.Database()
+            db.create_connection()
+            logging.info(f'db connection: {db.connection}')
+
         for df in [expenses, incomes, investment, investment_ytd, accounts, accounts_balance]:
             PATH_TO_DB = os.path.join(os.getenv(r'DB_LOCATION'), '%s.csv') %df.name
+            df_name = df.name
             df[db_last_update] = now
             df[db_last_update] = df[db_last_update].dt.strftime('%Y-%m-%d %H:%M:%S')            
-            if PRODUCTION_MODE == True:
+            
+            if EXPORT_TO_LOCAL == True:
                 df.to_csv(PATH_TO_DB, encoding='utf-8-sig')
-                print('DB name: %s created' %df.name)
+                print('DB name: %s created' %df_name)
+            elif EXPORT_TO_DB == True:
+                df = df.replace({np.NaN: None}) #replace nan/nat values
+                type_eval, type_dict = verify_column_type(df=df, target_types=['period[M]'])
+                if type_eval == True:
+                    df = df.astype(type_dict)
+                db.insert_into_table(df=df, table=df_name)
             else:
-                print(f'DB to create: {df.name}')
+                print(f'DB to create: {df_name}')
 
 
 if __name__ == "__main__":
+    ENV_NAME = 'dev'
+    ENV_PATH = os.path.join(os.getcwd(), 'env', f'{ENV_NAME}.env')
+    load_env_variables(file_path=ENV_PATH)
+    logging.info(f'variables for {ENV_NAME} env loaded')
+
     ReadSource(run_mode)
