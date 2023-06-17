@@ -56,5 +56,15 @@
         "GROUP",
         "COMMENT"
     ],
+    "CreditAccounts":[
+        "START_DATE",
+        "FINAL_DATE",
+        "ACCOUNT",
+        "CURRENCY",
+        "DEBT",
+        "PAYMENT",
+        "PAYMENT_DATE",
+        "COMMENT"
+    ],
     "Updates":[]
 }

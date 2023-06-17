@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 
 #own modules
-import pg_db
 from log import logger_configuration
 logger_configuration()
 
@@ -20,8 +19,7 @@ logger_configuration()
 # mode 2 -> full refresh
 '''
 run_mode = 2
-EXPORT_TO_LOCAL = False
-EXPORT_TO_DB = True
+EXPORT_TO_LOCAL = True
 
 #setup variables
 structure_filename = 'column_structure.json'
@@ -81,8 +79,8 @@ def check_data_integrity(df:object, check_col:str):
         print('check integrity')
     return integrity
 
-def get_expenses(xls):
-    df_expenses = pd.read_excel(xls,
+def get_expenses(xlsx):
+    df_expenses = pd.read_excel(xlsx,
             sheet_name='Expenses',
             header=2,
             usecols=lambda x: x in STRUCTURE_EXPENSES
@@ -123,11 +121,11 @@ def get_expenses(xls):
     df_expenses['source_period'] = df_expenses['date'].dt.to_period(freq='M')
 
     #Add source's name
-    df_expenses['source_name'] = str(xls.io).split('\\')[-1]
+    df_expenses['source_name'] = str(xlsx.io).split('\\')[-1]
     return df_expenses
 
-def get_incomes(xls):
-    df_incomes = pd.read_excel(xls,
+def get_incomes(xlsx):
+    df_incomes = pd.read_excel(xlsx,
         sheet_name='Income',
         header=2,
         usecols=lambda x: x in STRUCTURE_INCOMES
@@ -163,11 +161,11 @@ def get_incomes(xls):
     df_incomes['source_period'] = df_incomes['date'].dt.to_period(freq='M')
 
     #Add source's name
-    df_incomes['source_name'] = str(xls.io).split('\\')[-1]   
+    df_incomes['source_name'] = str(xlsx.io).split('\\')[-1]   
     return df_incomes
 
-def get_investment(xls):
-    df_investment = pd.read_excel(xls,
+def get_investment(xlsx):
+    df_investment = pd.read_excel(xlsx,
         sheet_name='Investment',
         header=2,
         usecols=lambda x: x in STRUCTURE_INVESTMENT
@@ -203,11 +201,11 @@ def get_investment(xls):
     df_investment['source_period'] = df_investment['date'].dt.to_period(freq='M')
 
     #Add source's name
-    df_investment['source_name'] = str(xls.io).split('\\')[-1]
+    df_investment['source_name'] = str(xlsx.io).split('\\')[-1]
     return df_investment
 
-def get_investment_ytd(xls):
-    df_investment_ytd = pd.read_excel(xls,
+def get_investment_ytd(xlsx):
+    df_investment_ytd = pd.read_excel(xlsx,
         sheet_name='Total Investment',
         header=2,
         usecols=lambda x: x in STRUCTURE_INVESTMENT_YTD
@@ -253,7 +251,7 @@ def get_investment_ytd(xls):
     check_data_integrity(df=df_investment_ytd, check_col='date')
 
     #Truncate date to month
-    source_name = str(xls.io).split('\\')[-1]
+    source_name = str(xlsx.io).split('\\')[-1]
     period = source_name.split('_')[0] + '-' + source_name.split('_')[1]
     df_investment_ytd['source_period'] = pd.Period(period)
 
@@ -261,8 +259,8 @@ def get_investment_ytd(xls):
     df_investment_ytd['source_name'] = source_name
     return df_investment_ytd
 
-def get_accounts(xls):
-    df_accounts = pd.read_excel(xls,
+def get_accounts(xlsx):
+    df_accounts = pd.read_excel(xlsx,
         sheet_name='Accounts',
         header=2,
         usecols=lambda x: x in STRUCTURE_ACCOUNTS
@@ -295,7 +293,7 @@ def get_accounts(xls):
     check_data_integrity(df=df_accounts, check_col='account_id')
     
     #Truncate date to month
-    source_name = str(xls.io).split('\\')[-1]
+    source_name = str(xlsx.io).split('\\')[-1]
     period = source_name.split('_')[0] + '-' + source_name.split('_')[1]
     df_accounts['source_period'] = pd.Period(period)
 
@@ -305,8 +303,8 @@ def get_accounts(xls):
     num_accts = len(df_accounts['account_id'])
     return df_accounts, num_accts
 
-def get_accounts_balance(xls, num_accts:int):
-    df_balance = pd.read_excel(xls,
+def get_accounts_balance(xlsx, num_accts:int):
+    df_balance = pd.read_excel(xlsx,
         sheet_name='Accounts Balance',
         header=2,
         usecols=lambda x: x in STRUCTURE_ACCOUNTS_BALANCE
@@ -336,7 +334,7 @@ def get_accounts_balance(xls, num_accts:int):
     check_data_integrity(df=df_balance, check_col='account')
 
     #Truncate date to month
-    source_name = str(xls.io).split('\\')[-1]
+    source_name = str(xlsx.io).split('\\')[-1]
     period = source_name.split('_')[0] + '-' + source_name.split('_')[1]
     df_balance['source_period'] = pd.Period(period)
 
@@ -373,13 +371,13 @@ def verify_column_type(df:pd.DataFrame, target_types:list):
 def DataCollection(paths:list):
     i = 0
     for file_path in paths:
-        xls = pd.ExcelFile(file_path)
-        expenses    = get_expenses(xls)
-        incomes     = get_incomes(xls)
-        investment  = get_investment(xls)
-        investment_ytd      = get_investment_ytd(xls)
-        accounts, num_accts = get_accounts(xls)
-        accounts_balance    = get_accounts_balance(xls, num_accts)
+        xlsx = pd.ExcelFile(file_path)
+        expenses    = get_expenses(xlsx)
+        incomes     = get_incomes(xlsx)
+        investment  = get_investment(xlsx)
+        investment_ytd      = get_investment_ytd(xlsx)
+        accounts, num_accts = get_accounts(xlsx)
+        accounts_balance    = get_accounts_balance(xlsx, num_accts)
 
         if i ==0:
             df_expenses     = expenses
@@ -558,11 +556,6 @@ def ReadSource(run_mode:int):
                 print(f'DB to update: {df.name}')
 
     elif run_mode == 2:
-        if EXPORT_TO_DB == True:
-            db = pg_db.Database()
-            db.create_connection()
-            logging.info(f'db connection: {db.connection}')
-
         for df in [expenses, incomes, investment, investment_ytd, accounts, accounts_balance]:
             PATH_TO_DB = os.path.join(os.getenv(r'DB_LOCATION'), '%s.csv') %df.name
             df_name = df.name
@@ -572,12 +565,6 @@ def ReadSource(run_mode:int):
             if EXPORT_TO_LOCAL == True:
                 df.to_csv(PATH_TO_DB, encoding='utf-8-sig')
                 print('DB name: %s created' %df_name)
-            elif EXPORT_TO_DB == True:
-                df = df.replace({np.NaN: None}) #replace nan/nat values
-                type_eval, type_dict = verify_column_type(df=df, target_types=['period[M]'])
-                if type_eval == True:
-                    df = df.astype(type_dict)
-                db.insert_into_table(df=df, table=df_name)
             else:
                 print(f'DB to create: {df_name}')
 
