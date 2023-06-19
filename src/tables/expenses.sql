@@ -7,7 +7,7 @@ CREATE TABLE public.expenses
     description character varying(255),
     status character varying(255),
     amount real,
-    source_period character varying(255),
+    source_period date,
     source_name character varying(255),
     db_update timestamp without time zone,
     PRIMARY KEY (id)

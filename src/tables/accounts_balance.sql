@@ -13,7 +13,7 @@ CREATE TABLE public.accounts_balance
     total_account real,
     new_balance real,
     check_date date,
-    source_period character varying(255),
+    source_period date,
     source_name character varying(255),
     db_update timestamp without time zone,
     PRIMARY KEY (id)

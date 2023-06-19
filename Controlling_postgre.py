@@ -16,12 +16,12 @@ logger_configuration()
 
 ''' 
 ###### run mode ######
-# mode 1 -> incremental refresh, 
-# mode 2 -> full refresh
+# mode 1 -> incremental refresh (current_month) 
+# mode 2 -> full refresh (all_files)
 '''
 run_mode = 2
 EXPORT_TO_LOCAL = False
-EXPORT_TO_DB = False
+EXPORT_TO_DB = True
 
 #setup variables
 structure_filename = 'column_structure.json'
@@ -58,18 +58,12 @@ def get_files(directory:str, run_mode:str):
             # info = entry.stat()
             # print(f'{entry.name}\t Last Modified: {convert_date(info.st_mtime)}')
             files.append(entry.path)
-            print(f' file collected: {entry.path}')
+            logging.info(f'found file: {entry.path}')
     files.sort()
 
-    if run_mode == 'all_files':
+    if run_mode == 2: #*full refresh (all files) 
         result = files
-    elif run_mode == 'current_month':
-        # year = entry.name.split('_')[0]
-        # month = entry.name.split('_')[1]
-        # file_month = date(int(year),int(month),1)
-        # current_month = datetime.now().date().replace(day=1)
-        # if file_month == current_month:
-        #     files.append(entry.path)
+    elif run_mode == 1: #*incremental refresh (current_month/last_month) 
         result.append(files[-1])
     else:
         raise Exception('run_mode invalid')
@@ -79,8 +73,6 @@ def check_data_integrity(df:object, check_col:str):
     integrity = False
     if df[check_col].isnull().values.any() == False:
         integrity = True
-        # print(df.shape)
-        # print('key column integrity cheked')
     else:
         print('check integrity')
     return integrity
@@ -125,6 +117,7 @@ def get_expenses(xlsx):
 
     #Truncate date to month
     df_expenses['source_period'] = df_expenses['date'].dt.to_period(freq='M')
+    df_expenses['source_period'] = df_expenses['source_period'].dt.to_timestamp(freq='D')
 
     #Add source's name
     df_expenses['source_name'] = str(xlsx.io).split('\\')[-1]
@@ -165,6 +158,7 @@ def get_incomes(xlsx):
 
     #Truncate date to month
     df_incomes['source_period'] = df_incomes['date'].dt.to_period(freq='M')
+    df_incomes['source_period'] = df_incomes['source_period'].dt.to_timestamp(freq='D')
 
     #Add source's name
     df_incomes['source_name'] = str(xlsx.io).split('\\')[-1]   
@@ -205,6 +199,7 @@ def get_investment(xlsx):
 
     #Truncate date to month
     df_investment['source_period'] = df_investment['date'].dt.to_period(freq='M')
+    df_investment['source_period'] = df_investment['source_period'].dt.to_timestamp(freq='D')
 
     #Add source's name
     df_investment['source_name'] = str(xlsx.io).split('\\')[-1]
@@ -260,6 +255,7 @@ def get_investment_ytd(xlsx):
     source_name = str(xlsx.io).split('\\')[-1]
     period = source_name.split('_')[0] + '-' + source_name.split('_')[1]
     df_investment_ytd['source_period'] = pd.Period(period)
+    df_investment_ytd['source_period'] = df_investment_ytd['source_period'].dt.to_timestamp(freq='D')
 
     #Add source's name
     df_investment_ytd['source_name'] = source_name
@@ -302,6 +298,7 @@ def get_accounts(xlsx):
     source_name = str(xlsx.io).split('\\')[-1]
     period = source_name.split('_')[0] + '-' + source_name.split('_')[1]
     df_accounts['source_period'] = pd.Period(period)
+    df_accounts['source_period'] = df_accounts['source_period'].dt.to_timestamp(freq='D')
 
     #Add source's name
     df_accounts['source_name'] = source_name 
@@ -343,6 +340,7 @@ def get_accounts_balance(xlsx, num_accts:int):
     source_name = str(xlsx.io).split('\\')[-1]
     period = source_name.split('_')[0] + '-' + source_name.split('_')[1]
     df_balance['source_period'] = pd.Period(period)
+    df_balance['source_period'] = df_balance['source_period'].dt.to_timestamp(freq='D')
 
     #Add source's name
     df_balance['source_name'] = source_name  
@@ -431,7 +429,6 @@ def DataCollection(paths:list):
     if rename_cols == True:
         df_accounts_balance.rename(columns=names_dict, inplace=True)
 
-
     #Set df names
     df_expenses.name = 'expenses'
     df_incomes.name = 'incomes'
@@ -439,7 +436,7 @@ def DataCollection(paths:list):
     df_investment_ytd.name = 'investment_ytd'
     df_accounts_balance.name = 'accounts_balance'
 
-    #Setting data format
+    #Setting datetime format
     for df in [df_expenses, df_incomes, df_investment, df_investment_ytd, df_accounts_balance]:
         if df.name == 'expenses':
             df['date'] = df['date'].dt.strftime('%Y-%m-%d')
@@ -460,16 +457,45 @@ def DataCollection(paths:list):
 
     return df_expenses, df_incomes, df_investment, df_investment_ytd, df_accounts_balance
 
-def ReadSource(run_mode:int):
-    source_mode = None
-    DIRECTORY = os.getenv(r'DIRECTORY_LOCATION')
-    
-    if run_mode == 1:
-        source_mode = 'current_month'
-    elif run_mode == 2:
-        source_mode = 'all_files'
+def UpdateTableKeys():
+    table_keys = []
 
-    files = get_files(DIRECTORY,source_mode)
+    DIRECTORY = os.getenv(r'DIRECTORY_LOCATION')
+    run_mode = 1 #* (current_month / last available month)
+    files = get_files(DIRECTORY,run_mode)
+
+    xlsx = pd.ExcelFile(files[0])
+    accounts, num_accts = get_accounts(xlsx)
+    
+    #set index name and verify column names
+    index_name = 'id'
+    accounts.rename_axis(index_name, inplace=True)
+    rename_cols, names_dict = remove_spaces_from_columns(df=accounts)
+    if rename_cols == True:
+        accounts.rename(columns=names_dict, inplace=True)
+    accounts.name = 'accounts'
+    table_keys.append(accounts)
+
+    if EXPORT_TO_DB == True:
+        db = pg_db.Database()
+        db.create_connection()
+        logging.info(f'db connection: {db.connection}')
+
+    now = pd.Timestamp.now()
+    for df in table_keys:
+        df_name = df.name
+        df['uploaded_at'] = now
+        df['uploaded_at'] = df['uploaded_at'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        df['updated_at'] = now
+        df['updated_at'] = df['updated_at'].dt.strftime('%Y-%m-%d %H:%M:%S')
+         
+        if EXPORT_TO_DB == True:
+            df = df.replace({np.NaN: None}) #replace nan/nat values
+            db.insert_into_table(df=df, table=df_name)
+
+def ReadSource(run_mode:int):
+    DIRECTORY = os.getenv(r'DIRECTORY_LOCATION')
+    files = get_files(DIRECTORY,run_mode)
     expenses, incomes, investment, investment_ytd, accounts_balance = DataCollection(paths=files)
 
     #Overview
@@ -504,7 +530,7 @@ def ReadSource(run_mode:int):
     now = pd.Timestamp.now()
     db_last_update = 'db_update'
 
-    if run_mode == 1:
+    if run_mode == 1: #*incremental refresh
         DB_DIRECTORY = os.getenv(r'DB_LOCATION')
         db_mode = 'all_files'
         paths = get_files(DB_DIRECTORY,db_mode)
@@ -548,7 +574,7 @@ def ReadSource(run_mode:int):
             else:
                 print(f'DB to update: {df.name}')
 
-    elif run_mode == 2:
+    elif run_mode == 2: #*full refresh
         if EXPORT_TO_DB == True:
             db = pg_db.Database()
             db.create_connection()
@@ -565,13 +591,9 @@ def ReadSource(run_mode:int):
                 print('DB name: %s created' %df_name)
             elif EXPORT_TO_DB == True:
                 df = df.replace({np.NaN: None}) #replace nan/nat values
-                type_eval, type_dict = verify_column_type(df=df, target_types=['period[M]'])
-                if type_eval == True:
-                    df = df.astype(type_dict)
                 db.insert_into_table(df=df, table=df_name)
             else:
                 print(f'DB to create: {df_name}')
-
 
 if __name__ == "__main__":
     ENV_NAME = 'dev'
@@ -580,3 +602,4 @@ if __name__ == "__main__":
     logging.info(f'variables for {ENV_NAME} env loaded')
 
     ReadSource(run_mode)
+    # UpdateTableKeys()

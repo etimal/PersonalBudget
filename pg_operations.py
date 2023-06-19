@@ -48,6 +48,14 @@ def create_tables():
         logging.info(f"execute 'create table' for {table}")
         path_to_query = table_sql_files.get(table)
         db.create_table_from_file(path_to_query)
+    
+def create_table_keys():
+    db = connect_to_db()
+    table_sql_files = scan_directory(dir=r'src\\table_keys')
+    for table in table_sql_files:
+        logging.info(f"execute 'create table' for {table}")
+        path_to_query = table_sql_files.get(table)
+        db.create_table_from_file(path_to_query)
 
 def delete_tables():
     db = connect_to_db()
@@ -74,7 +82,7 @@ def main():
     logging.info(f'variables for {ENV_NAME} env loaded')
 
     # execute operation
-    # delete_tables()
+    create_tables()
 
 if __name__ == "__main__":
     main()
